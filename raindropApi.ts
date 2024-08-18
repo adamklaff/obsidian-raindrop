@@ -1,6 +1,5 @@
 // raindropApi.ts
 import { requestUrl, RequestUrlResponse } from 'obsidian';
-import { moment } from 'obsidian';
 
 export interface RaindropBookmark {
     title: string;
@@ -20,8 +19,8 @@ export class NoApiKeyError extends Error {
 }
 
 interface FilterOptions {
-    dateType: 'created' | 'modified';
-    date: string;
+    dateType: 'created';
+    date: string | null;
     tags: string[];
     collection: string;
 }
@@ -29,6 +28,10 @@ interface FilterOptions {
 export async function fetchRaindropBookmarks(apiKey: string, options: FilterOptions): Promise<RaindropBookmark[]> {
     if (!apiKey) {
         throw new NoApiKeyError();
+    }
+
+    if (!options.date) {
+        return []; // Return empty array if date is null
     }
 
     let searchQuery = `${options.dateType}:${options.date}`;
