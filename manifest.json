@@ -4,6 +4,6 @@
     "version": "1.0.0",
     "minAppVersion": "0.15.0",
     "description": "Display Raindrop bookmarks in your Obsidian notes",
-    "author": "Your Name",
+    "author": "Adam Klaff",
     "isDesktopOnly": false
 }
