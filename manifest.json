@@ -1,7 +1,7 @@
 {
     "id": "raindrop-bookmarks",
     "name": "Raindrop Bookmarks",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "minAppVersion": "0.15.0",
     "description": "Display Raindrop bookmarks in your Obsidian notes",
     "author": "Adam Klaff",
