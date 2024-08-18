@@ -1,6 +1,8 @@
 // main.ts
 import { Plugin, MarkdownPostProcessorContext } from 'obsidian';
 import { RaindropBookmarksSettings, DEFAULT_SETTINGS, RaindropBookmarksSettingTab } from './settings';
+import { fetchRaindropBookmarks, RaindropBookmark, NoApiKeyError } from './raindropApi';
+import { moment } from 'obsidian';
 
 export default class RaindropBookmarksPlugin extends Plugin {
     settings: RaindropBookmarksSettings;
@@ -19,7 +21,73 @@ export default class RaindropBookmarksPlugin extends Plugin {
         await this.saveData(this.settings);
     }
 
-    raindropProcessor(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) {
-        el.createEl('p', { text: 'Raindrop Bookmarks placeholder (API key: ' + this.settings.apiKey + ')' });
+    async raindropProcessor(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) {
+        const options = this.parseOptions(source, ctx);
+
+        try {
+            const bookmarks = await fetchRaindropBookmarks(this.settings.apiKey, options);
+            this.renderBookmarks(bookmarks, el);
+        } catch (error) {
+            if (error instanceof NoApiKeyError) {
+                el.createEl('p', { text: 'No API Key Specified' });
+            } else {
+                el.createEl('p', { text: `Error: ${error.message}` });
+            }
+        }
+    }
+
+    private parseOptions(source: string, ctx: MarkdownPostProcessorContext) {
+        const lines = source.split('\n').map(line => line.trim());
+        const options = {
+            dateType: 'created' as 'created' | 'modified',
+            date: moment().format('YYYY-MM-DD'),
+            tags: [] as string[],
+            collection: ''
+        };
+
+        lines.forEach(line => {
+            if (line.startsWith('created:') || line.startsWith('modified:')) {
+                const [type, value] = line.split(':').map(part => part.trim());
+                options.dateType = type as 'created' | 'modified';
+                if (value === '{daily}') {
+                    options.date = ctx.sourcePath.split('/').pop()?.replace('.md', '') || moment().format('YYYY-MM-DD');
+                } else {
+                    options.date = value || moment().format('YYYY-MM-DD');
+                }
+            } else if (line.startsWith('#')) {
+                options.tags.push(line.substring(1));
+            } else if (line.startsWith('@')) {
+                options.collection = line.substring(1);
+            }
+        });
+
+        return options;
+    }
+
+    private renderBookmarks(bookmarks: RaindropBookmark[], el: HTMLElement) {
+        if (bookmarks.length === 0) {
+            el.createEl('p', { text: 'No bookmarks found for the specified filters.' });
+            return;
+        }
+
+        const ul = el.createEl('ul');
+        bookmarks.forEach(bookmark => {
+            const li = ul.createEl('li');
+            const a = li.createEl('a', {
+                text: bookmark.title,
+                href: bookmark.link
+            });
+            a.setAttribute('target', '_blank');
+
+            const collectionName = bookmark.collection?.title || "Unsorted";
+            let details = ` (Collection: ${collectionName}`;
+
+            if (bookmark.tags && bookmark.tags.length > 0) {
+                details += `, Tags: ${bookmark.tags.join(', ')}`;
+            }
+
+            details += ')';
+            li.appendText(details);
+        });
     }
 }
