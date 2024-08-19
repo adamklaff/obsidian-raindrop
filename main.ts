@@ -1,16 +1,38 @@
 // main.ts
-import { Plugin, MarkdownPostProcessorContext } from 'obsidian';
+import { Plugin, MarkdownPostProcessorContext, MarkdownView } from 'obsidian';
 import { RaindropBookmarksSettings, DEFAULT_SETTINGS, RaindropBookmarksSettingTab } from './settings';
 import { fetchRaindropBookmarks, RaindropBookmark, NoApiKeyError } from './raindropApi';
 import { moment } from 'obsidian';
 
 export default class RaindropBookmarksPlugin extends Plugin {
     settings: RaindropBookmarksSettings;
+    private refreshInterval: number;
 
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new RaindropBookmarksSettingTab(this.app, this));
         this.registerMarkdownCodeBlockProcessor('raindrop', this.raindropProcessor.bind(this));
+
+        // Set up interval to refresh active document every minute
+        this.refreshInterval = window.setInterval(() => {
+            this.refreshActiveDocument();
+        }, 60000); // 60000 ms = 1 minute
+
+        // Register the interval so it's properly cleared when the plugin is disabled
+        this.registerInterval(this.refreshInterval);
+
+        // Optional: Add a command to manually trigger refresh
+        this.addCommand({
+            id: 'refresh-raindrop-blocks',
+            name: 'Refresh Raindrop Blocks in Active Document',
+            callback: async () => {
+                await this.refreshActiveDocument();
+            }
+        });
+    }
+
+    async onunload() {
+        window.clearInterval(this.refreshInterval);
     }
 
     async loadSettings() {
@@ -37,6 +59,18 @@ export default class RaindropBookmarksPlugin extends Plugin {
                 el.createEl('p', { text: 'No API Key Specified' });
             } else {
                 el.createEl('p', { text: `Error: ${error.message}` });
+            }
+        }
+    }
+
+    async refreshActiveDocument() {
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView) {
+            const editor = activeView.editor;
+            const content = editor.getValue();
+            if (content.includes('```raindrop')) {
+                // Force a re-render of the document
+                this.app.workspace.trigger('editor-change', editor, editor);
             }
         }
     }
