@@ -46,11 +46,6 @@ export default class RaindropBookmarksPlugin extends Plugin {
     async raindropProcessor(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) {
         const options = this.parseOptions(source, ctx);
 
-        if (!options.date) {
-            el.createEl('p', { text: 'No Results' });
-            return;
-        }
-
         try {
             const bookmarks = await fetchRaindropBookmarks(this.settings.apiKey, options);
             this.renderBookmarks(bookmarks, el);
@@ -78,24 +73,20 @@ export default class RaindropBookmarksPlugin extends Plugin {
     private parseOptions(source: string, ctx: MarkdownPostProcessorContext) {
         const lines = source.split('\n').map(line => line.trim());
         const options = {
-            dateType: 'created' as 'created',
-            date: null as string | null,
+            dateType: 'created' as 'created' | 'modified',
+            date: moment().format('YYYY-MM-DD'), // Set a default value
             tags: [] as string[],
             collection: ''
         };
 
         lines.forEach(line => {
-            if (line.startsWith('created:')) {
-                const [_, value] = line.split(':').map(part => part.trim());
+            if (line.startsWith('created:') || line.startsWith('modified:')) {
+                const [type, value] = line.split(':').map(part => part.trim());
+                options.dateType = type as 'created' | 'modified';
                 if (value === '{daily}') {
-                    const fileName = ctx.sourcePath.split('/').pop();
-                    options.date = fileName ? fileName.replace('.md', '') : null;
-                    // Validate the date format
-                    if (!options.date || !moment(options.date, 'YYYY-MM-DD', true).isValid()) {
-                        options.date = null;
-                    }
+                    options.date = ctx.sourcePath.split('/').pop()?.replace('.md', '') || moment().format('YYYY-MM-DD');
                 } else {
-                    options.date = null; // Invalid input, will result in "No Results"
+                    options.date = value || moment().format('YYYY-MM-DD');
                 }
             } else if (line.startsWith('#')) {
                 options.tags.push(line.substring(1));
