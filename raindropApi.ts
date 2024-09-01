@@ -1,8 +1,8 @@
 // raindropApi.ts
 import { requestUrl, RequestUrlResponse } from 'obsidian';
-import { moment } from 'obsidian';
 
 export interface RaindropBookmark {
+    id: number;
     title: string;
     link: string;
     collection: {
@@ -26,6 +26,29 @@ interface FilterOptions {
     collection: string;
 }
 
+async function fetchCollectionDetails(apiKey: string, collectionId: number): Promise<{ $id: number; title: string }> {
+    if (collectionId <= 0) {
+        return { $id: collectionId, title: 'Unsorted' };
+    }
+
+    const response: RequestUrlResponse = await requestUrl({
+        url: `https://api.raindrop.io/rest/v1/collection/${collectionId}`,
+        headers: {
+            'Authorization': `Bearer ${apiKey}`
+        }
+    });
+
+    if (response.status !== 200) {
+        throw new Error(`API returned status ${response.status} for collection fetch`);
+    }
+
+    const data = JSON.parse(response.text);
+    return {
+        $id: data.item._id,
+        title: data.item.title
+    };
+}
+
 export async function fetchRaindropBookmarks(apiKey: string, options: FilterOptions): Promise<RaindropBookmark[]> {
     if (!apiKey) {
         throw new NoApiKeyError();
@@ -41,7 +64,7 @@ export async function fetchRaindropBookmarks(apiKey: string, options: FilterOpti
         searchQuery += ` collection:"${options.collection}"`;
     }
 
-    const timestamp = Date.now(); // Add this line for cache-busting
+    const timestamp = Date.now(); // For cache-busting
 
     try {
         const response: RequestUrlResponse = await requestUrl({
@@ -56,7 +79,22 @@ export async function fetchRaindropBookmarks(apiKey: string, options: FilterOpti
         }
 
         const data = JSON.parse(response.text);
-        return data.items;
+        const bookmarksPromises = data.items.map(async (item: any): Promise<RaindropBookmark> => {
+            let collection = { $id: 0, title: 'Unsorted' };
+            if (item.collection && item.collection.$id && item.collection.$id > 0) {
+                collection = await fetchCollectionDetails(apiKey, item.collection.$id);
+            }
+
+            return {
+                id: item._id,
+                title: item.title,
+                link: item.link,
+                collection: collection,
+                tags: item.tags || []
+            };
+        });
+
+        return Promise.all(bookmarksPromises);
     } catch (error) {
         if (error instanceof NoApiKeyError) {
             throw error;

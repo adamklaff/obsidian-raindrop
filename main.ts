@@ -113,15 +113,23 @@ export default class RaindropBookmarksPlugin extends Plugin {
             });
             a.setAttribute('target', '_blank');
 
-            const collectionName = bookmark.collection?.title || "Unsorted";
-            let details = ` (Collection: ${collectionName}`;
+            const collectionName = bookmark.collection.$id <= 0 ? 'Unsorted' : bookmark.collection.title;
+            let details = ` (${collectionName}`;
 
             if (bookmark.tags && bookmark.tags.length > 0) {
-                details += `, Tags: ${bookmark.tags.join(', ')}`;
+                details += ` | #${bookmark.tags.join(', #')}`;
             }
 
             details += ')';
             li.appendText(details);
+
+            // Add Raindrop link
+            const raindropLink = li.createEl('a', {
+                href: `https://app.raindrop.io/my/${bookmark.collection.$id}/item/${bookmark.id}`,
+                cls: 'raindrop-link'
+            });
+            raindropLink.setAttribute('target', '_blank');
+            raindropLink.setText('💧'); // Raindrop emoji
         });
     }
 }
